@@ -2,18 +2,17 @@ import {JSONSchema4Type, JSONSchema4TypeName} from 'json-schema'
 import {findKey, includes, isPlainObject, map, memoize, omit} from 'lodash'
 import {format} from 'util'
 import {Options} from './'
-import {typesOfSchema} from './typesOfSchema'
 import {
   AST,
-  T_ANY,
-  T_ANY_ADDITIONAL_PROPERTIES,
   TInterface,
   TInterfaceParam,
+  TIntersection,
   TNamedInterface,
   TTuple,
+  T_ANY,
+  T_ANY_ADDITIONAL_PROPERTIES,
   T_UNKNOWN,
-  T_UNKNOWN_ADDITIONAL_PROPERTIES,
-  TIntersection
+  T_UNKNOWN_ADDITIONAL_PROPERTIES
 } from './types/AST'
 import {
   getRootSchema,
@@ -23,6 +22,7 @@ import {
   SchemaSchema,
   SchemaType
 } from './types/JSONSchema'
+import {typesOfSchema} from './typesOfSchema'
 import {generateName, log, maybeStripDefault, maybeStripNameHints} from './utils'
 
 export type Processed = Map<LinkedJSONSchema, Map<SchemaType, AST>>
@@ -111,6 +111,19 @@ function parseLiteral(schema: JSONSchema4Type, keyName: string | undefined): AST
   }
 }
 
+function recursiveParamCollector(params: any[], collection = {}): Record<string, AST> {
+  return params.reduce((coll, p) => {
+    if (p.params) {
+      return recursiveParamCollector(p.params, coll)
+    }
+
+    return {
+      ...coll,
+      [p.keyName]: p.ast
+    }
+  }, collection)
+}
+
 function parseNonLiteral(
   schema: LinkedJSONSchema,
   type: SchemaType,
@@ -124,11 +137,48 @@ function parseNonLiteral(
 
   switch (type) {
     case 'ALL_OF':
+      const astParams = schema.allOf!.map(_ => parse(_, options, undefined, processed, usedNames))
+
+      const paramByKey = recursiveParamCollector(astParams)
+
+      // Required properties have been specified alongside `allOf`.
+      if (Array.isArray(schema.required)) {
+        // This block will add an anonymous interface whose keys are the
+        // required properties. Every type is `any`, since this interface doesn't
+        // care what the type is, but rather is only concerned that the
+        // properties exist.
+
+        const requiredParams = schema.required
+          .map((propertyName): TInterfaceParam | undefined => {
+            if (!paramByKey[propertyName]) {
+              // Property required that does not exist
+              return undefined
+            }
+            return {
+              ast: paramByKey[propertyName],
+              isPatternProperty: false,
+              isRequired: true,
+              isUnreachableDefinition: false,
+              keyName: propertyName
+            }
+          })
+          .filter(Boolean)
+
+        if (requiredParams.length > 0) {
+          astParams.push({
+            comment: undefined,
+            keyName: undefined,
+            params: requiredParams as TInterfaceParam[],
+            superTypes: [],
+            type: 'INTERFACE'
+          })
+        }
+      }
       return {
         comment: schema.description,
-        keyName,
+        keyName: keyName,
         standaloneName: standaloneName(schema, keyNameFromDefinition, usedNames),
-        params: schema.allOf!.map(_ => parse(_, options, undefined, processed, usedNames)),
+        params: astParams,
         type: 'INTERSECTION'
       }
     case 'ANY':

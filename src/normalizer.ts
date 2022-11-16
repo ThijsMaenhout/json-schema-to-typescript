@@ -1,8 +1,8 @@
-import {JSONSchemaTypeName, LinkedJSONSchema, NormalizedJSONSchema, Parent} from './types/JSONSchema'
-import {appendToDescription, escapeBlockComment, isSchemaLike, justName, toSafeString, traverse} from './utils'
+import {isDeepStrictEqual} from 'util'
 import {Options} from './'
 import {DereferencedPaths} from './resolver'
-import {isDeepStrictEqual} from 'util'
+import {JSONSchemaTypeName, LinkedJSONSchema, NormalizedJSONSchema, Parent} from './types/JSONSchema'
+import {appendToDescription, escapeBlockComment, isSchemaLike, justName, toSafeString, traverse} from './utils'
 
 type Rule = (
   schema: LinkedJSONSchema,
@@ -53,7 +53,11 @@ rules.set('Transform `required`=false to `required`=[]', schema => {
 })
 
 rules.set('Default additionalProperties', (schema, _, options) => {
-  if (isObjectType(schema) && !('additionalProperties' in schema) && schema.patternProperties === undefined) {
+  if (
+    isObjectType(schema) &&
+    typeof schema.additionalProperties === 'undefined' &&
+    schema.patternProperties === undefined
+  ) {
     schema.additionalProperties = options.additionalProperties
   }
 })
