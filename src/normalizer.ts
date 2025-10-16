@@ -226,6 +226,17 @@ rules.set('Transform const to singleton enum', schema => {
   }
 })
 
+rules.set('Add JSDoc description', schema => {
+    const commentsToAppend = [
+    'description' in schema ? `@description ${schema.description}` : '',
+  ].filter(Boolean)
+  if (commentsToAppend.length) {
+    schema.description = appendToDescription(schema.description, ...commentsToAppend)
+  }
+})
+
+
+
 export function normalize(
   rootSchema: LinkedJSONSchema,
   dereferencedPaths: DereferencedPaths,
