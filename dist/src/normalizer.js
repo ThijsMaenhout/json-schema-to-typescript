@@ -194,6 +194,14 @@ rules.set('Transform const to singleton enum', function (schema) {
         delete schema.const;
     }
 });
+rules.set('Add JSDoc description', function (schema) {
+    var commentsToAppend = [
+        'description' in schema ? "@description ".concat(schema.description) : '',
+    ].filter(Boolean);
+    if (commentsToAppend.length) {
+        schema.description = utils_1.appendToDescription.apply(void 0, __spreadArray([schema.description], commentsToAppend, false));
+    }
+});
 function normalize(rootSchema, dereferencedPaths, filename, options) {
     rules.forEach(function (rule) { return (0, utils_1.traverse)(rootSchema, function (schema, key) { return rule(schema, filename, options, key, dereferencedPaths); }); });
     return rootSchema;
